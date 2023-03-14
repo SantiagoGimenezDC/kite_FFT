@@ -1,0 +1,13 @@
+# Build the documentation on GitLab and publish on GitLab pages
+
+image: python:latest
+pages:
+  stage: deploy
+  only:
+    - docs
+  script:
+    - pip install mkdocs-material
+    - mkdocs build --site-dir public
+  artifacts:
+    paths:
+      - public
