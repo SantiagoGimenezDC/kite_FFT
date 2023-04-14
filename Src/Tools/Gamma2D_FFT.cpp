@@ -49,13 +49,21 @@ void integration(Eigen::Matrix<double, -1, 1 >& E_points, Eigen::Matrix<double, 
   }
 }
 
+void Station(int millisec, std::string msg ){
+  int sec=millisec/1000;
+  int min=sec/60;
+  int reSec=sec%60;
+  std::cout<<msg;
+  std::cout<<min<<" min, "<<reSec<<" secs;"<<" ("<< millisec<<"ms) "<<std::endl;
+
+}
 
 template <typename T,unsigned D>
 void Simulation<T,D>::Gamma2D_FFT(int NRandomV, int NDisorder, int num_reps, std::vector<int> N_moments, int kernel, 
                               std::vector<std::vector<unsigned>> indices, std::string name_dataset){
   //  Sized must be divisible by num_reps!!!!
   int MEMORY_alt = N_moments.at(0);  
-  int M = N_moments.at(0),  BUFFER_SIZE = r.Sized/num_reps; 
+  int M = N_moments.at(0),  BUFFER_SIZE = r.Size/num_reps; 
   
 
   
@@ -91,7 +99,12 @@ void Simulation<T,D>::Gamma2D_FFT(int NRandomV, int NDisorder, int num_reps, std
   KPM_Vector<T,D> kpm0(1, *this);      // initial random vector
   KPM_Vector<T,D> kpm1(3, *this); // vector that will be Chebyshev-iterated on
   KPM_Vector<T,D> kpm2(1, *this); // kpm1 multiplied by the velocity
-  
+
+     // absolute mind-numbing hack to drible through the ghosts
+  KPM_Vector<T,D> ghost_ref(1, *this);
+  ghost_ref.v.col(0) = Eigen::Matrix<T, -1, 1 >::Constant( ghost_ref.v.col(0).size(),1, 1.0);
+  ghost_ref.empty_ghosts(0);
+
 
   Eigen::Matrix<T, -1, -1>
      bras(BUFFER_SIZE,M),
@@ -146,7 +159,13 @@ void Simulation<T,D>::Gamma2D_FFT(int NRandomV, int NDisorder, int num_reps, std
 	
 	
      for(int s=0; s<=num_reps; s++){
-       
+
+       auto start_RV = std::chrono::steady_clock::now();
+
+    #pragma omp master
+       {
+	 std::cout<<" RD step: "<<disorder*NRandomV+randV+1<<"/"<<NDisorder*NRandomV<<"  - s: "<<s+1<<"/"<<num_reps+(r.Size%num_reps>0)<<std::endl;
+       }
 	int buffer_length = BUFFER_SIZE;
 	
 	if( s == num_reps ){
@@ -177,7 +196,15 @@ void Simulation<T,D>::Gamma2D_FFT(int NRandomV, int NDisorder, int num_reps, std
 	  kpm1.Velocity(&kpm2, indices, 1);
           kpm2.empty_ghosts(0);
 
-	  kets.col(i) = kpm2.v.matrix().col(0).segment(s*BUFFER_SIZE, buffer_length);
+	  //kets.col(i) = kpm2.v.matrix().col(0).segment(s*BUFFER_SIZE, buffer_length);
+
+	  //hack to drible the ghosts
+	  int j=0;
+	  for(int n=0;n<buffer_length;n++)
+	    if( std::complex<double>(ghost_ref.v.matrix().col(0)(s*BUFFER_SIZE+n)).real() != 0 ){
+	      kets(j,i)=kpm2.v(s*BUFFER_SIZE+n,0);
+	      j++;
+	    }
         }
 
 
@@ -191,14 +218,33 @@ void Simulation<T,D>::Gamma2D_FFT(int NRandomV, int NDisorder, int num_reps, std
        // iterate M times, just like before. No need to multiply by v here	
         for(int i = 0; i < M; i++){
           kpm1.cheb_iteration(i);
-	  bras.col(i) = kpm1.v.matrix().col(kpm1.index).segment(s*BUFFER_SIZE, buffer_length);
+	  
+	  //bras.col(i) = kpm1.v.matrix().col(kpm1.index).segment(s*BUFFER_SIZE, buffer_length);
+
+	  //hack to drible the ghosts
+	  int j=0;
+	  for(int n=0;n<buffer_length;n++)
+	    if( std::complex<double>(ghost_ref.v.matrix().col(0)(s*BUFFER_SIZE+n)).real() != 0 ){
+              bras(j,i)=kpm1.v(s*BUFFER_SIZE+n,kpm1.index);
+	      j++;	
+	    }
         }
 	
 	Bastin_FFTs( bras, kets, E_points, kernel, integrand); 
        
 
-
        integrand *= factor;
+
+
+       
+       auto end_RV = std::chrono::steady_clock::now();    
+	
+       #pragma omp master
+       {
+	Station(std::chrono::duration_cast<std::chrono::milliseconds>(end_RV - start_RV).count(), "       Step Time:         "); 
+       std::cout<<std::endl;       
+       }
+
       }
 
      /*----------------------------------------------------------------------------------------------/
@@ -247,15 +293,19 @@ void Simulation<T,D>::store_data_FFT_runtime( Eigen::Matrix<double, -1, 1> *inte
   
 #pragma omp barrier
 #pragma omp critical
-  Global.FFT_cond.matrix() += ( *integrand - Global.FFT_cond.matrix() ) / value_type(RD + 1);
+  Global.FFT_R_data.matrix().col(RD) += *integrand;
 #pragma omp barrier
   
     
     
 #pragma omp master
   {
-    Eigen::Array <double, -1, -1> array_integrand((*integrand).rows(), 1);
-    array_integrand.matrix() = *integrand;
+    
+    Global.FFT_cond.matrix() += ( Global.FFT_R_data.matrix().col(RD) - Global.FFT_cond.matrix() ) / value_type(RD + 1);
+
+    Eigen::Array <double, -1, -1> array_integrand( Global.FFT_R_data.matrix().rows(), 1);
+    array_integrand.matrix() = Global.FFT_R_data.matrix().col(RD);
+    
     H5::H5File * file = new H5::H5File(name, H5F_ACC_RDWR);
     std::string R_label = name_dataset+"_RD"+std::to_string(RD+1);
     write_hdf5(array_integrand, file, R_label);

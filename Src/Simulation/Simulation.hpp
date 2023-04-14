@@ -26,7 +26,7 @@ public:
   //void Measure_Gamma(measurement_queue);
   //double kernel(const int , const int );
   void Bastin_FFTs  (   Eigen::Matrix<T, -1, -1>&  , Eigen::Matrix<T, -1, -1>& , Eigen::Matrix<double, -1, 1 >& , int, Eigen::Matrix<double, -1, 1 >& );
-
+  void Greenwood_FFTs  (   Eigen::Matrix<T, -1, -1>&  , Eigen::Matrix<T, -1, -1>& , Eigen::Matrix<double, -1, 1 >& , int, Eigen::Matrix<double, -1, 1 >& );
   
   void Gamma1D(int, int, int, std::vector<std::vector<unsigned>>, std::string );
   void Gamma2D(int, int, std::vector<int>,  std::vector<std::vector<unsigned>>, std::string );
@@ -36,6 +36,7 @@ public:
   void GammaGeneral(int, int, std::vector<int>, std::vector<std::vector<unsigned>>, std::string );
   void recursive_KPM(int, int, std::vector<int>, long *, long *,  std::vector<std::vector<unsigned>>, std::vector<KPM_Vector<T,D>*> *, Eigen::Array<T, -1, -1> *);
   void store_gamma(Eigen::Array<T, -1, -1> *, std::vector<int>,  std::vector<std::vector<unsigned>>, std::string );
+  void store_gamma_2( std::string );
   void store_gamma1D(Eigen::Array<T, -1, -1> *, std::string );
   void store_gamma3D(Eigen::Array<T, -1, -1> *, std::vector<int>, std::vector<std::vector<unsigned>>, std::string );
   std::vector<std::vector<unsigned>> process_string(std::string);
