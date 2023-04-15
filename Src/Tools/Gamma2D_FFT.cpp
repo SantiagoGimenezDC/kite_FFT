@@ -106,6 +106,8 @@ void Simulation<T,D>::Gamma2D_FFT(int NRandomV, int NDisorder, int num_reps, std
   ghost_ref.empty_ghosts(0);
 
 
+	
+  
   Eigen::Matrix<T, -1, -1>
      bras(BUFFER_SIZE,M),
      kets(BUFFER_SIZE,M); 
@@ -157,22 +159,24 @@ void Simulation<T,D>::Gamma2D_FFT(int NRandomV, int NDisorder, int num_reps, std
 	kpm1.initiate_phases();           //Initiates the Hopping Phases, including TBC
         kpm0.Exchange_Boundaries();
 	
+
+
+      
+	int current = 0;
+
+	while(std::complex<double>(ghost_ref.v.matrix().col(0)(current)).real() == 0)
+          current++;	 
 	
      for(int s=0; s<=num_reps; s++){
 
        auto start_RV = std::chrono::steady_clock::now();
 
-    #pragma omp master
-       {
-	 std::cout<<" RD step: "<<disorder*NRandomV+randV+1<<"/"<<NDisorder*NRandomV<<"  - s: "<<s+1<<"/"<<num_reps+(r.Size%num_reps>0)<<std::endl;
-       }
-	int buffer_length = BUFFER_SIZE;
-	
+       int buffer_length = BUFFER_SIZE;
 	if( s == num_reps ){
-	  if(r.Sized % num_reps ==0)
+	  if( r.Size % num_reps == 0 )
 	    break;
 	  else{
-	    buffer_length =  r.Sized - (s+1)*BUFFER_SIZE;
+	    buffer_length =  r.Size % BUFFER_SIZE;
 	    bras.resize(buffer_length, M);
             kets.resize(buffer_length, M);
 	    bras.setZero();
@@ -180,6 +184,10 @@ void Simulation<T,D>::Gamma2D_FFT(int NRandomV, int NDisorder, int num_reps, std
 	  }
 	}
 
+    #pragma omp master
+       {
+	 std::cout<<" RD step: "<<disorder*NRandomV+randV+1<<"/"<<NDisorder*NRandomV<<"  - s: "<<s+1<<"/"<<num_reps+(r.Size % num_reps>0)<<std::endl;
+       }
 
 
 	
@@ -196,15 +204,19 @@ void Simulation<T,D>::Gamma2D_FFT(int NRandomV, int NDisorder, int num_reps, std
 	  kpm1.Velocity(&kpm2, indices, 1);
           kpm2.empty_ghosts(0);
 
-	  //kets.col(i) = kpm2.v.matrix().col(0).segment(s*BUFFER_SIZE, buffer_length);
+	  //	  kets.col(i) = kpm2.v.matrix().col(0).segment(s*BUFFER_SIZE, buffer_length);
 
-	  //hack to drible the ghosts
+
+	  
+	  //------------hack to drible the ghosts
 	  int j=0;
-	  for(int n=0;n<buffer_length;n++)
-	    if( std::complex<double>(ghost_ref.v.matrix().col(0)(s*BUFFER_SIZE+n)).real() != 0 ){
-	      kets(j,i)=kpm2.v(s*BUFFER_SIZE+n,0);
+	  for(int n=0; j<buffer_length;n++)
+	    if( std::complex<double>(ghost_ref.v.matrix().col(0)(current+n)).real() != 0 ){
+	      kets(j,i)=kpm2.v(current+n,0);
 	      j++;
 	    }
+     	  //----------------------------------------------------//*/
+	  
         }
 
 
@@ -217,33 +229,60 @@ void Simulation<T,D>::Gamma2D_FFT(int NRandomV, int NDisorder, int num_reps, std
 
        // iterate M times, just like before. No need to multiply by v here	
         for(int i = 0; i < M; i++){
-          kpm1.cheb_iteration(i);
+          kpm1.cheb_iteration(i);          
 	  
-	  //bras.col(i) = kpm1.v.matrix().col(kpm1.index).segment(s*BUFFER_SIZE, buffer_length);
+	  bras.col(i) = kpm1.v.matrix().col(kpm1.index).segment(s*BUFFER_SIZE, buffer_length);
 
-	  //hack to drible the ghosts
+	  
+	  //---------------hack to drible the ghosts
 	  int j=0;
-	  for(int n=0;n<buffer_length;n++)
-	    if( std::complex<double>(ghost_ref.v.matrix().col(0)(s*BUFFER_SIZE+n)).real() != 0 ){
-              bras(j,i)=kpm1.v(s*BUFFER_SIZE+n,kpm1.index);
+	  for(int n=0; j<buffer_length;n++)
+	    if( std::complex<double>(ghost_ref.v.matrix().col(0)(current+n)).real() != 0 ){
+              bras(j,i)=kpm1.v(current+n,kpm1.index);
 	      j++;	
 	    }
+	  //----------------------------------------------------//*/
+	  
         }
+
+	
+	//--------------FINAL::hack to drible the ghosts
+	
+        int m=0;
+	for(int j=0;j<buffer_length && current+m<r.Sized;){
+	    if( std::complex<double>(ghost_ref.v.matrix().col(0)(current+m)).real() != 0 )
+	      j++;
+	    m++;
+	}
+	current+=m;
+	
+
+	while(std::complex<double>(ghost_ref.v.matrix().col(0)(current)).real() == 0 && current<r.Sized )
+          current++;	 
+
+	#pragma omp master
+	std::cout<<current<<"/"<<r.Sized<<" | "<< r.Size<<std::endl;
+	//----------------------------------------------------*/
+
+
+
+
+
 	
 	Bastin_FFTs( bras, kets, E_points, kernel, integrand); 
        
 
-       integrand *= factor;
+        integrand *= factor;
 
 
        
-       auto end_RV = std::chrono::steady_clock::now();    
+        auto end_RV = std::chrono::steady_clock::now();    
 	
-       #pragma omp master
-       {
-	Station(std::chrono::duration_cast<std::chrono::milliseconds>(end_RV - start_RV).count(), "       Step Time:         "); 
-       std::cout<<std::endl;       
-       }
+        #pragma omp master
+        {
+	 Station(std::chrono::duration_cast<std::chrono::milliseconds>(end_RV - start_RV).count(), "       Step Time:         "); 
+         std::cout<<std::endl;       
+        }
 
       }
 

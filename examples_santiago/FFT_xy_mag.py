@@ -61,10 +61,10 @@ def main(onsite=(0, 0)):
 
     # number of decomposition parts [nx,ny] in each direction of matrix.
     # This divides the lattice into various sections, each of which is calculated in parallel
-    nx = 4
-    ny = 4
+    nx = 2
+    ny = 2
     # number of unit cells in each direction.
-    lx = ly = 1582
+    lx = ly = 256
 
     # make config object which caries info about
     # - the number of decomposition parts [nx, ny],
@@ -94,16 +94,16 @@ def main(onsite=(0, 0)):
 
     calculation.conductivity_dc_FFT(
         num_points=10,
-        num_moments=20000,
+        num_moments=1000,
         num_random=1,
         num_disorder=1,
         direction="xy",
         temperature=0.00,
-        num_reps=100,
+        num_reps=15,
         kernel=1
     )
     
-    modification = kite.Modification(magnetic_field=1)
+    modification = kite.Modification(magnetic_field=650)
 
     # configure the *.h5 file
     output_file = "FFT_xy_mag.h5"
