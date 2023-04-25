@@ -104,15 +104,7 @@ void Simulation<T,D>::Gamma2D_mod(int NRandomV, int NDisorder, int NReps,std::ve
 	  kpm3.initiate_phases();          
                                         
       kpm0.Exchange_Boundaries();
-      kpm1.set_index(0);
-
-      //FIXED vector for benchmarks;
-      kpm0.v.col(0).setZero();
-      int id;    
-      id = omp_get_thread_num();
-      if(id==0)
-        kpm0.v.col(0)(400) = ComplexTraits<T>::assign_value(std::polar(M_PI/4.0).real(),std::polar(M_PI/4.0).imag()  );
-      
+      kpm1.set_index(0);      
 
  
       kpm0.Velocity(&kpm1, indices, 0);

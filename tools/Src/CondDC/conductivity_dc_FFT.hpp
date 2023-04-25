@@ -21,6 +21,7 @@ class conductivity_dc_FFT{
 		// Functions to calculate. They will require the objects present in
     // the configuration file
     int direction;
+    int RD;
     int NumDisorder;
     int NumMoments;
     int MaxMoments;

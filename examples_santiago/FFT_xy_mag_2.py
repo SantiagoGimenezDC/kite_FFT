@@ -99,14 +99,14 @@ def main(onsite=(0, 0)):
         num_disorder=1,
         direction="xy",
         temperature=0.00,
-        num_reps=50,
+        num_reps=30,
         kernel=1
     )
     
     modification = kite.Modification(magnetic_field=50)
 
     # configure the *.h5 file
-    output_file = "FFT_xy_mag.h5"
+    output_file = "FFT_xy_mag_5.h5"
     kite.config_system(lattice, configuration, calculation, modification, filename=output_file)
 
     # for generating the desired output from the generated HDF5-file, run

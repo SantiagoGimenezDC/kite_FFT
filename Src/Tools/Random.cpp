@@ -18,8 +18,8 @@ KPMRandom<T>::KPMRandom() {
 template <typename T>
 void KPMRandom<T>::init_random()
 {
-  bool deterministic=true;
-  if(deterministic=true){
+  bool deterministic=false;
+  if(deterministic==true){
     int seed=1000;
       rng.seed(seed);
       #pragma omp master

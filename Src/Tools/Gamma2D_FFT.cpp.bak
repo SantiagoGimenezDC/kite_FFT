@@ -105,10 +105,6 @@ void Simulation<T,D>::Gamma2D_FFT(int NRandomV, int NDisorder, int num_reps, std
   ghost_ref.v.col(0) = Eigen::Matrix<T, -1, 1 >::Constant( ghost_ref.v.col(0).size(),1, 1.0);
   ghost_ref.empty_ghosts(0);
 
-    #pragma omp master
-       {
-	 std::cout<<" Hilbert space dim:   t*size:"<< r.n_threads*r.Size<<",  orb:"<<r.Orb<<",   Nt: "<<r.Nt<<"  sizet: "<<r.Sizet <<std::endl;
-       }
 
 	
   
@@ -264,22 +260,17 @@ void Simulation<T,D>::Gamma2D_FFT(int NRandomV, int NDisorder, int num_reps, std
 	while(std::complex<double>(ghost_ref.v.matrix().col(0)(current)).real() == 0 && current<r.Sized )
           current++;	 
 
+	#pragma omp master
+	std::cout<<current<<"/"<<r.Sized<<" | "<< r.Size<<std::endl;
 	//----------------------------------------------------*/
 
 
 
 
 
-	auto start_FFT = std::chrono::steady_clock::now();    
-
+	
 	Bastin_FFTs( bras, kets, E_points, kernel, integrand); 
        
-        auto end_FFT = std::chrono::steady_clock::now();    
-        #pragma omp master
-        {
-	 Station(std::chrono::duration_cast<std::chrono::milliseconds>(end_FFT - start_FFT).count(), "       FFT Time:          "); 
-        }
-
 
         integrand *= factor;
 
@@ -295,7 +286,33 @@ void Simulation<T,D>::Gamma2D_FFT(int NRandomV, int NDisorder, int num_reps, std
 
       }
 
+     /*----------------------------------------------------------------------------------------------/
+     
+      #pragma omp critical
+     {
+       Global.FFT_cond +=  ( integrand - Global.FFT_cond ) / value_type(average + 1);
+     }
+     
+     #pragma omp barrier
+     {
+      #pragma omp master
+       {
+	 T den = -1.0;//atoi(system.num_orbitals)*atoi(system.spin_degeneracy)/atoi(system.unit_cell_area)/units; 
+  
+         integrand = Global.FFT_cond;
+         integration( E_points, integrand, data);	  
 
+         std::ofstream dataP;
+         dataP.open("currentResult_test.dat");
+
+         for(int e=0;e<M;e++)  
+           dataP<< E_points(e) <<"  "<< std::complex<double>(data(e)*den).real() <<std::endl;
+
+          dataP.close();
+       }
+     }
+      
+     /----------------------------------------------------------------------------------------------*/
 
      
      store_data_FFT_runtime(&integrand, randV*NDisorder+disorder, name_dataset );

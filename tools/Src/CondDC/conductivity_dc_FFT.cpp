@@ -179,8 +179,13 @@ bool conductivity_dc_FFT<T, DIM>::fetch_parameters(){
 
 
   // Fetch the number of Chebyshev Moments
-	get_hdf5(&MaxMoments, &file, (char*)(dirName+"NumMoments").c_str());	
+  int NRandom, NDisorder;
 
+  get_hdf5(&MaxMoments, &file, (char*)(dirName+"NumMoments" ).c_str());	
+  get_hdf5(&NRandom,    &file, (char*)(dirName+"NumRandoms" ).c_str());
+  get_hdf5(&NDisorder,  &file, (char*)(dirName+"NumDisorder").c_str());
+
+  RD=NRandom*NDisorder;
 	/*Shouldt be used
   // Fetch the number of Fermi energies from the .h5 file
 	get_hdf5(&NFermiEnergies, &file, (char*)(dirName+"NumPoints").c_str());	
@@ -213,7 +218,30 @@ bool conductivity_dc_FFT<T, DIM>::fetch_parameters(){
   } catch(H5::Exception& e) {
       debug_message("Conductivity DC: There is no Gamma matrix.\n");
   }
-	
+  
+  
+    // Retrieve the R_vecs Matrix
+  integrand_FFT_R_data = Eigen::Array<double,-1,-1>::Zero(NumMoments,RD); 
+  
+  for(int rd=1; rd<=RD; rd++){
+    std::string  RDMatrixName = dirName + "integrand" + dirString+"_RD"+std::to_string(rd);
+    bool possible = false;
+    try{
+      debug_message("Filling the integrand RD matrix.\n");
+      Eigen::Array<double,-1,-1> integrand_R_data_col = Eigen::Array<double,-1,-1>::Zero(NumMoments,1);
+
+      get_hdf5(integrand_R_data_col.data(), &file, (char*)RDMatrixName.c_str());
+    
+      integrand_FFT_R_data.matrix().col(rd-1)=integrand_R_data_col.matrix();
+
+      possible = true;
+    } catch(H5::Exception& e) {
+        debug_message("Conductivity DC: There is no Integrand_RD matrix.\n");
+    }
+  }
+
+
+  
 
   file.close();
 	debug_message("Left conductivity_dc::read.\n");
@@ -401,6 +429,11 @@ void conductivity_dc_FFT<U, DIM>::save_to_file(Eigen::Matrix<std::complex<U>, -1
   
   myfile.close();
 
+  
+  std::ofstream myfile2;
+  myfile2.open("condDC_integrand_R_data.dat");
+  myfile2<<integrand_FFT_R_data.matrix();  
+  myfile2.close();
 
 }
 
