@@ -124,8 +124,7 @@ void Simulation<T,D>::Gamma2D(int NRandomV, int NDisorder, std::vector<int> N_mo
                 kpm2.cheb_iteration(i);
 
 
-		  /*----------------------------ANY M FIX-----------------------------*/
-		  
+	      //----------------------------ANY M-----------------------------//	  
 	      int i_max = MEMORY,
 		j_max = MEMORY;
 
@@ -134,7 +133,7 @@ void Simulation<T,D>::Gamma2D(int NRandomV, int NDisorder, std::vector<int> N_mo
 		i_max = N_moments.at(0) % MEMORY;
 	      if(m + MEMORY > N_moments.at(1))
 		j_max = N_moments.at(1) % MEMORY;
-	      
+	      //--------------------------------------------------------------//	  	      
               
               // Finally, do the matrix product and store the result in the Gamma matrix
               tmp.setZero();

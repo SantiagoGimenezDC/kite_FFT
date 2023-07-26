@@ -91,21 +91,22 @@ def main(onsite=(0, 0)):
     # specify calculation type
     calculation = kite.Calculation(configuration)
 
-    calculation.conductivity_dc(
+    calculation.conductivity_dc_FFT(
         num_points=10,
-        num_moments=514,
+        num_moments=2048,
         num_random=1,
         num_disorder=1,
         direction="xx",
         temperature=0.00,
-     
+        num_reps=1,
+        kernel=1
     )
     
     #modification = kite.Modification(magnetic_field=1650)
 
     # configure the *.h5 file
-    output_file = "test_graphene_norm.h5"
-    kite.config_system(lattice, configuration, calculation, filename=output_file)
+    output_file = "FFT_test_graphene.h5"
+    kite.config_system(lattice, configuration, calculation,  filename=output_file)
 
     # for generating the desired output from the generated HDF5-file, run
     # ../build/KITEx graphene_lattice-output.h5

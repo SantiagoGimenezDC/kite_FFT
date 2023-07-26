@@ -128,8 +128,6 @@ Eigen::Matrix<std::complex<U>, -1, 1> conductivity_dc<U, DIM>::calc_cond(Eigen::
 
 
 
-
-
 template <typename U, unsigned DIM>
 void conductivity_dc<U, DIM>::save_to_file(Eigen::Matrix<std::complex<U>, -1, -1> condDC){
 

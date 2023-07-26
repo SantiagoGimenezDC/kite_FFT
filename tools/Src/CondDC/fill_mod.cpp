@@ -52,11 +52,31 @@ Eigen::Matrix<std::complex<U>, -1, -1, Eigen::RowMajor> conductivity_dc_mod<U, D
       dgreenR(i, m) = dgreen<U>(m,  1, complexEnergyP)*factor;
       if(kernel==1)
 	dgreenR(i,m) *= kernel_jackson<U>(m,Moments_D);
+	
     }
     
   }
   return dgreenR;
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 template <typename U, unsigned DIM>
@@ -124,8 +144,6 @@ Eigen::Matrix<std::complex<U>, -1, 1> conductivity_dc_mod<U, DIM>::calc_cond(Eig
     fermi = fermiEnergies(i);
     for(int j = 0; j < NEnergies; j++){
       integrand(j) = GammaE(j)*fermi_function(energies(j), fermi, beta);
-      // if(abs(energies(j))>0.99)
-      // integrand(j) = 0;
     }
     condDC(i) = integrate(energies, integrand);
   }

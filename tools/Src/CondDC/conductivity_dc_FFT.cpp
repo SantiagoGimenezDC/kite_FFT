@@ -123,8 +123,8 @@ void conductivity_dc_FFT<T, DIM>::set_default_parameters(){
     NEnergies           = 100;       // Number of energies used in the energy integration
     default_NEnergies   = true;
 
-    deltascat           = 0.01/scale;       // scattering parameter in the delta function
-    scat                = 0.01/scale;       // scattering parameter of 10meV in
+    deltascat           = 0.00/scale;       // scattering parameter in the delta function
+    scat                = 0.00/scale;       // scattering parameter of 10meV in
     default_scat        = true;             // the Green's functions in KPM reduced units
     default_deltascat   = true;             // the Green's functions in KPM reduced units
 
@@ -132,7 +132,7 @@ void conductivity_dc_FFT<T, DIM>::set_default_parameters(){
     default_filename    = true;
 
     // Temperature is in energy units, so it is actually kb*T, where kb is Boltzmann's constant
-    temperature         = 0.001/scale;      
+    temperature         = 0.000/scale;      
     beta                = 1.0/temperature;
     default_temp        = true;
 }
@@ -345,8 +345,8 @@ void conductivity_dc_FFT<U, DIM>::printDC(){
     // Prints all the information about the parameters
     std::cout << "The DC conductivity (FFT algo.) will be calculated with these parameters: (eV, Kelvin)\n"
         "   Temperature: "             << temperature*scale             << ((default_temp)?         " (default)":"") << "\n"
-        "   Broadening: "              << scat*scale                    << ((default_scat)?         " (default)":"") << "\n"
-        "   Delta broadening: "        << deltascat*scale               << ((default_deltascat)?    " (default)":"") << "\n"
+        "   Broadening: "              << scat*scale                    << ((default_scat)?         " (deactivated)":"") << "\n"
+        "   Delta broadening: "        << deltascat*scale               << ((default_deltascat)?    " (deactivated)":"") << "\n"
         "   Max Fermi energy: "        << maxFermiEnergy*scale + shift  << ((default_MFermi)?       " (default)":"") << "\n"
         "   Min Fermi energy: "        << minFermiEnergy*scale + shift  << ((default_mFermi)?       " (default)":"") << "\n"
         "   Number Fermi energies: "   << NFermiEnergies                << ((default_NFermi)?       " (default)":"") << "\n"
@@ -363,22 +363,23 @@ template <typename U, unsigned DIM>
 void conductivity_dc_FFT<U, DIM>::calculate2(){
   fermiEnergies = Eigen::Matrix<U, -1, 1>::Zero(NFermiEnergies,1);//LinSpaced(NFermiEnergies, minFermiEnergy, maxFermiEnergy);
   energies = Eigen::Matrix<U, -1, 1>::Zero(NEnergies,1);//LinSpaced(NFermiEnergies, minFermiEnergy, maxFermiEnergy);
-  
-  for(int i=0; i<NumMoments; i++) {
-     U tmp = integrand_FFT(i);
 
+  
+  for(int i=0; i<NumMoments/2; i++) {
+     U tmp = integrand_FFT(i);
      integrand_FFT(i) = integrand_FFT(NumMoments-i-1);
      integrand_FFT(NumMoments-i-1) = tmp;
-       
-     energies(i) = cos(M_PI*(double(NumMoments-i-1)+0.5)/NumMoments);
-     fermiEnergies(i) = energies(i);
-
-     
   }
+  
+  for(int i=0; i<NumMoments; i++) {     
+     energies(i) = cos(M_PI*(double(NumMoments-i-1)+0.5)/NumMoments);
+     fermiEnergies(i) = energies(i);     
+  }
+  
 
   // integrate over the whole energy range for each Fermi energy
   Eigen::Matrix<std::complex<U>, -1, 1> condDC;
-  U den = -systemInfo.num_orbitals*systemInfo.spin_degeneracy/systemInfo.unit_cell_area/units; 
+  U den  = -systemInfo.num_orbitals*systemInfo.spin_degeneracy/systemInfo.unit_cell_area/units; 
   condDC = calc_cond(integrand_FFT)*den;
 
   // save to a file
@@ -403,8 +404,6 @@ Eigen::Matrix<std::complex<U>, -1, 1> conductivity_dc_FFT<U, DIM>::calc_cond(Eig
     fermi = fermiEnergies(i);
     for(int j = 0; j < NEnergies; j++){
       local_integrand(j) = integrand(j)*fermi_function(energies(j), fermi, beta);
-      //      if(abs(energies(j)) >0.99)
-      //  local_integrand(j) = 0;      
     }
     condDC(i) = integrate(energies, local_integrand);
   }
@@ -421,6 +420,7 @@ void conductivity_dc_FFT<U, DIM>::save_to_file(Eigen::Matrix<std::complex<U>, -1
   U energy;
   std::ofstream myfile;
   myfile.open(filename);
+
   for(int i=0; i < NFermiEnergies; i++){
     energy = fermiEnergies(i)*systemInfo.energy_scale + systemInfo.energy_shift;
     cond = condDC(i);

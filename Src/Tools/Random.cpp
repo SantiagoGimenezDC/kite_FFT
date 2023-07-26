@@ -18,7 +18,7 @@ KPMRandom<T>::KPMRandom() {
 template <typename T>
 void KPMRandom<T>::init_random()
 {
-  bool deterministic=false;
+  bool deterministic=true;
   if(deterministic==true){
     int seed=1000;
       rng.seed(seed);

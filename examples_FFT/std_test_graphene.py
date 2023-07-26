@@ -56,15 +56,14 @@ def graphene_lattice(onsite=(0, 0)):
 
 def main(onsite=(0, 0)):
     """Prepare the input file for KITEx"""
-    # load lattice
+    # load lattice    
     lattice = graphene_lattice(onsite)
 
     # number of decomposition parts [nx,ny] in each direction of matrix.
     # This divides the lattice into various sections, each of which is calculated in parallel
-    nx = 4
-    ny = 8
+    nx = ny = 2
     # number of unit cells in each direction.
-    lx = ly = 1600
+    lx = ly = 128
 
     # make config object which caries info about
     # - the number of decomposition parts [nx, ny],
@@ -84,7 +83,7 @@ def main(onsite=(0, 0)):
         divisions=[nx, ny],
         length=[lx, ly],
         boundaries=[mode, mode],
-        is_complex=False,
+        is_complex=True,
         precision=1,
         spectrum_range=[-9,9]
     )
@@ -92,22 +91,20 @@ def main(onsite=(0, 0)):
     # specify calculation type
     calculation = kite.Calculation(configuration)
 
-    calculation.conductivity_dc_FFT(
+    calculation.conductivity_dc(
         num_points=10,
-        num_moments=20000,
+        num_moments=2048,
         num_random=1,
         num_disorder=1,
-        direction="xy",
-        temperature=0.00,
-        num_reps=50,
-        kernel=1
+        direction="xx",
+        temperature=0.00,     
     )
     
-    modification = kite.Modification(magnetic_field=50)
+    #modification = kite.Modification(magnetic_field=1650)
 
     # configure the *.h5 file
-    output_file = "FFT_xy_mag.h5"
-    kite.config_system(lattice, configuration, calculation, modification, filename=output_file)
+    output_file = "std_test_graphene.h5"
+    kite.config_system(lattice, configuration, calculation, filename=output_file)
 
     # for generating the desired output from the generated HDF5-file, run
     # ../build/KITEx graphene_lattice-output.h5

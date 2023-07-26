@@ -26,29 +26,7 @@ class KPM_Vector;
 #include <fstream>
 #include "complex_op.hpp"
 
-
-void integration(Eigen::Matrix<double, -1, 1 >& E_points, Eigen::Matrix<double, -1, 1 >& integrand, Eigen::Matrix<double, -1, 1 >& data){
-
-  int E =E_points.size();
-
-  //#pragma omp parallel for 
-  for(int k=0; k<E; k++ ){ 
-    if(abs(E_points(k))<0.99)
-    for(int j=k; j<E; j++ ){//IMPLICIT PARTITION FUNCTION. Energies are decrescent with e (bottom of the band structure is at e=M);
-      double ej  = E_points(j),
-	ej1      = E_points(j+1),
-	de       = ej-ej1,
-        integ    = ( integrand(j+1) + integrand(j) ) / 2.0;     
-      if(abs(E_points(j))>0.99)
-	    integ=0;
-      data(k) -=  de * integ;
-    }
-    else
-      data(k) =0;
-      
-  }
-}
-
+//Just a time measurement verbose output 
 void Station(int millisec, std::string msg ){
   int sec=millisec/1000;
   int min=sec/60;
@@ -61,9 +39,10 @@ void Station(int millisec, std::string msg ){
 template <typename T,unsigned D>
 void Simulation<T,D>::Gamma2D_FFT(int NRandomV, int NDisorder, int num_reps, std::vector<int> N_moments, int kernel, 
                               std::vector<std::vector<unsigned>> indices, std::string name_dataset){
-  //  Sized must be divisible by num_reps!!!!
+  
   int MEMORY_alt = N_moments.at(0);  
-  int M = N_moments.at(0),  BUFFER_SIZE = r.Size/num_reps; 
+  int M = N_moments.at(0),
+    BUFFER_SIZE = r.Size/num_reps; //Controls the row-wise size of the Chebyshev vector buffer
   
 
   
@@ -96,39 +75,39 @@ void Simulation<T,D>::Gamma2D_FFT(int NRandomV, int NDisorder, int num_reps, std
 
   //  --------- INITIALIZATIONS --------------
     
-  KPM_Vector<T,D> kpm0(1, *this);      // initial random vector
+  KPM_Vector<T,D> kpm0(1, *this); // initial random vector
   KPM_Vector<T,D> kpm1(3, *this); // vector that will be Chebyshev-iterated on
   KPM_Vector<T,D> kpm2(1, *this); // kpm1 multiplied by the velocity
 
-     // absolute mind-numbing hack to drible through the ghosts
+  //Hack to avoid through ghosts inside the buffer. This was relevant for the TBG.
   KPM_Vector<T,D> ghost_ref(1, *this);
   ghost_ref.v.col(0) = Eigen::Matrix<T, -1, 1 >::Constant( ghost_ref.v.col(0).size(),1, 1.0);
   ghost_ref.empty_ghosts(0);
 
-    #pragma omp master
-       {
-	 std::cout<<" Hilbert space dim:   t*size:"<< r.n_threads*r.Size<<",  orb:"<<r.Orb<<",   Nt: "<<r.Nt<<"  sizet: "<<r.Sizet <<std::endl;
-       }
+  #pragma omp master
+  {
+    std::cout<<" Hilbert space dim:   t*size:"<< r.n_threads*r.Size<<",  orb:"<<r.Orb<<",   Nt: "<<r.Nt<<"  sizet: "<<r.Sizet <<std::endl;
+  }
 
-	
-  
+  //Declaration and initialization of the row-wise Chebyshev vector buffers needed for the FFTs. These are the largest memory blocks.
+  //From  the paper, these are the a^{R/L} matrix row blocks;
   Eigen::Matrix<T, -1, -1>
      bras(BUFFER_SIZE,M),
      kets(BUFFER_SIZE,M); 
 
   bras.setZero();
   kets.setZero();
+
   
-      
-
-
-#pragma omp master
+  //global FFT variables
+  #pragma omp master
   {
     Global.FFT_cond.resize(M,1);
     Global.FFT_cond.setZero();
     Global.FFT_R_data.resize(M,NRandomV*NDisorder);  
   }
-  
+
+  //Local FFT variables
   Eigen::Matrix<double, -1, 1>
     integrand = Eigen::Matrix<double, -1, 1 >::Zero(M, 1),
     data      = Eigen::Matrix<double, -1, 1 >::Zero(M, 1),
@@ -165,16 +144,19 @@ void Simulation<T,D>::Gamma2D_FFT(int NRandomV, int NDisorder, int num_reps, std
 	
 
 
-      
-	int current = 0;
+      //Variable that dictates current position along the Chebyshev vector rows
+      //the FFT algorithm is operating on, skipping the ghosts;  
+      int current = 0;
+      while(std::complex<double>(ghost_ref.v.matrix().col(0)(current)).real() == 0)
+        current++;
 
-	while(std::complex<double>(ghost_ref.v.matrix().col(0)(current)).real() == 0)
-          current++;	 
+      
 	
      for(int s=0; s<=num_reps; s++){
 
        auto start_RV = std::chrono::steady_clock::now();
 
+       //-------------------This snippet allows sized to not necessarily be divisible by num_reps.------------// 
        int buffer_length = BUFFER_SIZE;
 	if( s == num_reps ){
 	  if( r.Size % num_reps == 0 )
@@ -187,89 +169,82 @@ void Simulation<T,D>::Gamma2D_FFT(int NRandomV, int NDisorder, int num_reps, std
             kets.setZero();
 	  }
 	}
-
-    #pragma omp master
+       //------------------------------------------------------------------------------------------------------//
+    
+       #pragma omp master
        {
 	 std::cout<<" RD step: "<<disorder*NRandomV+randV+1<<"/"<<NDisorder*NRandomV<<"  - s: "<<s+1<<"/"<<num_reps+(r.Size % num_reps>0)<<std::endl;
        }
 
-
-	
-        kpm1.v.setZero();
-        kpm1.set_index(0);
-        kpm0.set_index(0);
-	kpm0.Velocity(&kpm1, indices, 0);	
-       	
-       	
-	for(int i = 0; i <  M; i++) {
-          kpm1.cheb_iteration(i);
+       
+       kpm1.v.setZero();
+       kpm1.set_index(0);
+       kpm0.set_index(0);
+       kpm0.Velocity(&kpm1, indices, 0);	
+       		
+       for(int i = 0; i <  M; i++) {
+         kpm1.cheb_iteration(i);
               
-          kpm2.set_index(0);
-	  kpm1.Velocity(&kpm2, indices, 1);
-          kpm2.empty_ghosts(0);
+         kpm2.set_index(0);
+	 kpm1.Velocity(&kpm2, indices, 1);
+         kpm2.empty_ghosts(0);
 
-	  //	  kets.col(i) = kpm2.v.matrix().col(0).segment(s*BUFFER_SIZE, buffer_length);
-
+	 //This would also be saving ghost values equal to 0 in kets:
+	 //kets.col(i) = kpm2.v.matrix().col(0).segment(s*BUFFER_SIZE, buffer_length);
 
 	  
-	  //------------hack to drible the ghosts
-	  int j=0;
-	  for(int n=0; j<buffer_length;n++)
-	    if( std::complex<double>(ghost_ref.v.matrix().col(0)(current+n)).real() != 0 ){
-	      kets(j,i)=kpm2.v(current+n,0);
-	      j++;
-	    }
-     	  //----------------------------------------------------//*/
-	  
-        }
+	 //------------hack to avoid the ghosts
+	 int j=0;
+	 for(int n=0; j<buffer_length;n++)
+	   if( std::complex<double>(ghost_ref.v.matrix().col(0)(current+n)).real() != 0 ){
+	     kets(j,i)=kpm2.v(current+n,0);
+	     j++;
+	   }
+     	 //----------------------------------------------------//	  
+       }
 
-
-
-       // copy the |0> vector to |kpm1>
-	kpm1.v.setZero();
-	kpm1.set_index(0);
-        kpm1.v.col(0) = kpm0.v.col(0);
+       //copy the |0> vector to |kpm1>
+       kpm1.v.setZero();
+       kpm1.set_index(0);
+       kpm1.v.col(0) = kpm0.v.col(0);
 	
 
-       // iterate M times, just like before. No need to multiply by v here	
-        for(int i = 0; i < M; i++){
-          kpm1.cheb_iteration(i);          
+       //iterate M times, just like before. No need to multiply by v here	
+       for(int i = 0; i < M; i++){
+         kpm1.cheb_iteration(i);
 	  
-	  bras.col(i) = kpm1.v.matrix().col(kpm1.index).segment(s*BUFFER_SIZE, buffer_length);
+  	 //This would also be saving ghost values equal to 0 in bras:
+	 //bras.col(i) = kpm1.v.matrix().col(kpm1.index).segment(s*BUFFER_SIZE, buffer_length);
 
 	  
-	  //---------------hack to drible the ghosts
-	  int j=0;
-	  for(int n=0; j<buffer_length;n++)
-	    if( std::complex<double>(ghost_ref.v.matrix().col(0)(current+n)).real() != 0 ){
-              bras(j,i)=kpm1.v(current+n,kpm1.index);
-	      j++;	
-	    }
-	  //----------------------------------------------------//*/
-	  
+	 //---------------hack to avoid the ghosts-------------//
+	 int j=0;
+	 for(int n=0; j<buffer_length;n++)
+	   if( std::complex<double>(ghost_ref.v.matrix().col(0)(current+n)).real() != 0 ){
+             bras(j,i)=kpm1.v(current+n,kpm1.index);
+	     j++;	
+	   }
+	 //----------------------------------------------------//
         }
 
 	
-	//--------------FINAL::hack to drible the ghosts
-	
+	//--------------FINAL::hack to skip the ghosts---------//	
         int m=0;
 	for(int j=0;j<buffer_length && current+m<r.Sized;){
-	    if( std::complex<double>(ghost_ref.v.matrix().col(0)(current+m)).real() != 0 )
-	      j++;
+	  if( std::complex<double>(ghost_ref.v.matrix().col(0)(current+m)).real() != 0 )
+	    j++;
 	    m++;
 	}
 	current+=m;
-	
 
 	while(std::complex<double>(ghost_ref.v.matrix().col(0)(current)).real() == 0 && current<r.Sized )
           current++;	 
-
-	//----------------------------------------------------*/
-
+	//----------------------------------------------------//
 
 
+	
 
-
+        //===============================PERFORMING FFTs+DOT PRODUCT ALONG THE STORED ROWS OF BRAS/KETS====================================// 
 	auto start_FFT = std::chrono::steady_clock::now();    
 
 	Bastin_FFTs( bras, kets, E_points, kernel, integrand); 
@@ -277,33 +252,36 @@ void Simulation<T,D>::Gamma2D_FFT(int NRandomV, int NDisorder, int num_reps, std
         auto end_FFT = std::chrono::steady_clock::now();    
         #pragma omp master
         {
-	 Station(std::chrono::duration_cast<std::chrono::milliseconds>(end_FFT - start_FFT).count(), "       FFT Time:          "); 
+	  Station(std::chrono::duration_cast<std::chrono::milliseconds>(end_FFT - start_FFT).count(), "       FFT Time:          "); 
         }
 
+	integrand *= factor;
+        //=================================================================================================================================// 
 
-        integrand *= factor;
 
-
-       
+	
         auto end_RV = std::chrono::steady_clock::now();    
 	
         #pragma omp master
         {
-	 Station(std::chrono::duration_cast<std::chrono::milliseconds>(end_RV - start_RV).count(), "       Step Time:         "); 
-         std::cout<<std::endl;       
+	  Station(std::chrono::duration_cast<std::chrono::milliseconds>(end_RV - start_RV).count(), "       Total partition step time:         "); 
+          std::cout<<std::endl;       
         }
-
-      }
-
+     }//End of num_reps cycle
 
 
-     
      store_data_FFT_runtime(&integrand, randV*NDisorder+disorder, name_dataset );
      average++;
-     
-    }	    
-  }
-  //store_data_FFT(&integrand, NDisorder*NRandomV-1, name_dataset );
+
+     #pragma omp master
+     {
+       std::cout<<std::endl<<std::endl;
+     }
+
+    
+    }//End of randV cycle	    
+  }//End of NDisorder cycle
+  
 }
 
 
@@ -339,6 +317,7 @@ void Simulation<T,D>::store_data_FFT_runtime( Eigen::Matrix<double, -1, 1> *inte
     
   debug_message("Left store_data_FFT_runtime\n");
 }
+
 
 
 template <typename T,unsigned D>

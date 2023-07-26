@@ -106,8 +106,8 @@ void conductivity_dc_mod<T, DIM>::set_default_parameters(){
 
 
     NFermiEnergies      = 100;
-    minFermiEnergy      = (-1.0 - shift)/scale;        // -1eV in KPM reduced units [-1,1]
-    maxFermiEnergy      = ( 1.0 - shift)/scale;        //  1eV in KPM reduced units [-1,1]
+    minFermiEnergy      = -0.99;//(-1.0 - shift)/scale;        // -1eV in KPM reduced units [-1,1]
+    maxFermiEnergy      = 0.99;//( 1.0 - shift)/scale;        //  1eV in KPM reduced units [-1,1]
     default_NFermi      = true;
     default_mFermi      = true;
     default_MFermi      = true;
@@ -123,8 +123,8 @@ void conductivity_dc_mod<T, DIM>::set_default_parameters(){
     NEnergies           = 512;              // Number of energies used in the energy integration
     default_NEnergies   = true;
 
-    deltascat           = 0.01/scale;       // scattering parameter in the delta function
-    scat                = 0.01/scale;       // scattering parameter of 10meV in
+    deltascat           = 0.00/scale;       // scattering parameter in the delta function
+    scat                = 0.00/scale;       // scattering parameter of 10meV in
     default_scat        = true;             // the Green's functions in KPM reduced units
     default_deltascat   = true;             // the Green's functions in KPM reduced units
 
@@ -132,7 +132,7 @@ void conductivity_dc_mod<T, DIM>::set_default_parameters(){
     default_filename    = true;
 
     // Temperature is in energy units, so it is actually kb*T, where kb is Boltzmann's constant
-    temperature         = 0.001/scale;      
+    temperature         = 0.00/scale;      
     beta                = 1.0/temperature;
     default_temp        = true;
 
@@ -195,6 +195,8 @@ bool conductivity_dc_mod<T, DIM>::fetch_parameters(){
 
   default_NFermi    = false; //Updated NFermi and NEnergies default
   default_NEnergies = false;
+
+
   
 
   // Check whether the matrices we're going to retrieve are complex or not
@@ -317,7 +319,6 @@ void conductivity_dc_mod<U, DIM>::override_parameters(){
         kernel            = variables.CondDC_kernel;
         //default_kernel    = false;
     }
-
     
   debug_message("Padding Gamma");
   //int N_threads = systemInfo.NumThreads;
@@ -353,21 +354,24 @@ void conductivity_dc_mod<U, DIM>::printDC(){
         "   Integration range: "       << energy_range                  << ((default_energy_limits)?" (default)":" (Estimated from DoS)") << "\n"
         "   Num integration points: "  << NEnergies                     << ((default_NEnergies)?    " (default)":"") << "\n"
         "   Num Chebychev moments: "   << NumMoments                    << ((default_NumMoments)?   " (default)":"") << "\n"
-        "   Num threads: "             << NumThreads                    << ((default_NumThreads)?   " (default)":"") << "\n"; 
+        "   Num threads: "             << NumThreads                    << ((default_NumThreads)?   " (default)":"") << "\n"
+        "   Jackson Kernel: "          << ((kernel)?   " yes ":" no ") << "\n"; 
 }
-
 
 
 template <typename U, unsigned DIM>
 void conductivity_dc_mod<U, DIM>::calculate2(){
-  energies = Eigen::Matrix<U, -1, 1>::LinSpaced(NEnergies, minEnergy, maxEnergy);
-  fermiEnergies = Eigen::Matrix<U, -1, 1>::LinSpaced(NFermiEnergies, minFermiEnergy, maxFermiEnergy);
-      
+  fermiEnergies = Eigen::Matrix<U, -1, 1>::Zero(NFermiEnergies,1);//LinSpaced(NFermiEnergies, minFermiEnergy, maxFermiEnergy);
+  energies = Eigen::Matrix<U, -1, 1>::Zero(NEnergies,1);//LinSpaced(NFermiEnergies, minFermiEnergy, maxFermiEnergy);
+  
   for(int i=0; i<NumMoments; i++){      
     energies(i) = cos(M_PI*(double(NumMoments-i-1)+0.5)/NumMoments);
-     fermiEnergies(i) = energies(i);
-  }
+    fermiEnergies(i) = energies(i);
+    }
   
+  //fermiEnergies = Eigen::Matrix<U, -1, 1>::LinSpaced(NFermiEnergies, minFermiEnergy, maxFermiEnergy);
+  //energies = Eigen::Matrix<U, -1, 1>::LinSpaced(NFermiEnergies, minFermiEnergy, maxFermiEnergy);
+
   // Imaginary part of the Green's function: Dirac delta (greenR)
   // Derivative of the Green's function: dgreenR
   Eigen::Matrix<std::complex<U>, -1, -1, Eigen::ColMajor> greenR;
@@ -376,6 +380,7 @@ void conductivity_dc_mod<U, DIM>::calculate2(){
   // Fill the matrices that are going to be used in the multiplication
   // This is an operation of order ~ (NG + ND) * NE
   // and uses (ND + NG) * NE memory (complex U)
+
   greenR  = fill_delta();
   dgreenR = fill_dgreenR();
 
@@ -391,7 +396,7 @@ void conductivity_dc_mod<U, DIM>::calculate2(){
   Eigen::Matrix<std::complex<U>, -1, 1> condDC;
   U den = -systemInfo.num_orbitals*systemInfo.spin_degeneracy/systemInfo.unit_cell_area/units; 
   condDC = this->calc_cond(GammaE)*den;
-
+  
   // save to a file
   save_to_file(condDC);
 };
