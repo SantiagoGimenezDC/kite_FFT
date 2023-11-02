@@ -218,11 +218,12 @@ void Simulation<T,D>::Bastin_FFTs(   Eigen::Matrix<T, -1, -1>&  bras, Eigen::Mat
 
     //Keeping just the real part of E*p(E)+im*sqrt(1-E^2)*w(E) yields the Kubo-Bastin integrand:
   for(int k=0;k<M;k++){
-    double ek  = E_points[k];
-    final_integrand[k] += ek * ( p[k] ).real() + ( im * IM_root[k] * w[k] ).real();
-    final_integrand[k] *= 1.0/pow( (1.0 - ek  * ek ), 2.0);
-    final_integrand[k] *= -1.0/(M_PI); //Matches the prefactors from fill.cpp;
+    double ek  = E_points[k], new_value;
+    new_value = ek * ( p[k] ).real() + ( im * IM_root[k] * w[k] ).real();
+    new_value *= 1.0/pow( (1.0 - ek  * ek ), 2.0);
+    new_value *= -1.0/(M_PI); //Matches the prefactors from fill.cpp;
                                       //From the paper this would be -4.0/(M_PI*M_PI);
+    final_integrand[k] += new_value;
   }
     
 # pragma omp critical

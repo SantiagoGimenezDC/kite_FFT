@@ -42,7 +42,7 @@ void Simulation<T,D>::Gamma2D_FFT(int NRandomV, int NDisorder, int num_reps, std
   
   int MEMORY_alt = N_moments.at(0);  
   int M = N_moments.at(0),
-    BUFFER_SIZE = r.Size/num_reps; //Controls the row-wise size of the Chebyshev vector buffer
+    BUFFER_SIZE = r.Size/num_reps; //Controls the row-wise size of the Chebyshev vector buffer. For hacking out ghosts, here it should be r.Size
   
 
   
@@ -83,11 +83,12 @@ void Simulation<T,D>::Gamma2D_FFT(int NRandomV, int NDisorder, int num_reps, std
   KPM_Vector<T,D> ghost_ref(1, *this);
   ghost_ref.v.col(0) = Eigen::Matrix<T, -1, 1 >::Constant( ghost_ref.v.col(0).size(),1, 1.0);
   ghost_ref.empty_ghosts(0);
-
-  #pragma omp master
+  
+  
+  /*#pragma omp master
   {
     std::cout<<" Hilbert space dim:   t*size:"<< r.n_threads*r.Size<<",  orb:"<<r.Orb<<",   Nt: "<<r.Nt<<"  sizet: "<<r.Sizet <<std::endl;
-  }
+  }*/
 
   //Declaration and initialization of the row-wise Chebyshev vector buffers needed for the FFTs. These are the largest memory blocks.
   //From  the paper, these are the a^{R/L} matrix row blocks;
@@ -149,7 +150,7 @@ void Simulation<T,D>::Gamma2D_FFT(int NRandomV, int NDisorder, int num_reps, std
       int current = 0;
       while(std::complex<double>(ghost_ref.v.matrix().col(0)(current)).real() == 0)
         current++;
-
+      
       
 	
      for(int s=0; s<=num_reps; s++){

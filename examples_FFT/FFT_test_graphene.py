@@ -85,7 +85,7 @@ def main(onsite=(0, 0)):
         boundaries=[mode, mode],
         is_complex=True,
         precision=1,
-        spectrum_range=[-9,9]
+        spectrum_range=[-9,15]
     )
 
     # specify calculation type
@@ -93,12 +93,12 @@ def main(onsite=(0, 0)):
 
     calculation.conductivity_dc_FFT(
         num_points=10,
-        num_moments=2048,
+        num_moments=512,
         num_random=1,
         num_disorder=1,
-        direction="xx",
+        direction="xy",
         temperature=0.00,
-        num_reps=1,
+        num_reps=11,
         kernel=1
     )
     
